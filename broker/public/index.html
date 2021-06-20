@@ -20,12 +20,12 @@
                 stream_context = stream_canvas.getContext('2d');
             stream_context.strokeStyle = "green";
             stream_context.lineWidth = 5;
-
             const image = document.getElementById('source');
+            // var paint_canvas = $('#paint-canvas')[0],
+            //     paint_context = paint_canvas.getContext('2d');
 
-            var paint_canvas = $('#paint-canvas')[0],
-                paint_context = paint_canvas.getContext('2d');
-            var track_face = true;
+            var track_face = true,
+                main_face = new Object();
             var cameraName = 'Camera',
                 positionTimer = null,
                 wsavc = null,
@@ -50,70 +50,49 @@
             cameraName = params.get('id');
             console.log(`Connecting to ${cameraName}`);
 
-
-            // cv['onRuntimeInitialized'] = () => {
-            //     let utils = new Utils('errorMessage');
-            //     let faceCascadeFile = './haarcascade_frontalface_default.xml'; // path to xml
-            //     let classifier = new cv.CascadeClassifier(),
-            //         dst = new cv.Mat(stream_canvas.height, stream_canvas.width, cv.CV_8UC4),
-            //         gray = new cv.Mat(),
-            //         faces = new cv.RectVector();
-            //     utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {
-            //         classifier.load(faceCascadeFile)
-            //     });
-            //     workerOpenCV = new Worker('./worker.js')
-            //     console.log("Registering onmessage handler")
-            //     workerOpenCV.postMessage({
-            //         msg: 'init',
-            //         json: JSONfn.stringify({
-            //             classifer: classifier,
-            //             dst: dst,
-            //             gray: gray,
-            //             faces: faces,
-            //             // cvtColor: cv.cvtColor,
-            //             cv_8uc4: cv.CV_8UC4,
-            //             color_rgba2gray: cv.COLOR_RGBA2GRAY
-            //         })
-            //     });
             workerOpenCV = new Worker('./worker.js')
             workerOpenCV.onmessage = function(e) {
-                    switch (e.data.msg) {
-                        case 'Loaded':
-                            {
-                                console.log("Starting to paint")
-                                paintCanvas();
-                                break
-                            }
-                        case 'Processed':
-                            {
-                                let faces = e.data.faces;
-                                if (faces.length > 0) {
-                                    console.log(faces)
-                                }
-                                for (let i = 0; i < faces.length; ++i) {
-                                    let face = faces[i];
-                                    // let point1 = new cv.Point(face.x, face.y);
-                                    // let point2 = new cv.Point(face.x + face.width, face.y + face.height);
-                                    // cv.rectangle(dst, point1, point2, [255, 0, 0, 255]);
-                                    stream_context.beginPath();
-                                    stream_context.rect(face.x, face.y, face.width, face.height);
-                                    stream_context.stroke();
-                                }
-                                paintCanvas()
-                                break
-                            }
-                        case 'Gray':
-                            {
-                                console.log("SUP")
-                                var array = new Uint8ClampedArray(e.data.gray),
-                                    iData = new ImageData(array, stream_canvas.width, stream_canvas.height);
-                                paint_context.putImageData(iData, 0, 0);
-                            }
-                        default:
+                switch (e.data.msg) {
+                    case 'Loaded':
+                        {
+                            console.log("Worker fully loaded opencv")
+                            paintCanvas();
                             break
-                    }
+                        }
+                    case 'Processed':
+                        {
+                            let faces = e.data.faces;
+                            paintCanvas();
+                            // for (let i = 0; i < faces.length; ++i) {
+                            //     let face = faces[i];
+                            //     stream_context.beginPath();
+                            //     stream_context.rect(face.x, face.y, face.width, face.height);
+                            //     stream_context.stroke();
+                            // }
+                            if (faces.length > 0) {
+                                main_face = faces[0]
+                                let scale_constant = 0.2,
+                                    pan = (stream_canvas.width / 2 - (main_face.x + main_face.width / 2)) * scale_constant,
+                                    tilt = (stream_canvas.height / 2 - (main_face.y + main_face.height / 2)) * scale_constant;
+
+                                if (connected) {
+                                    wsavc.ws.send('{"pan": ' + pan + ', "tilt": ' + tilt + ', "relative": true, "slow":false}');
+                                    // wsavc.ws.send('{"pan": ' + pan + ', "tilt": ' + tilt + ', "relative": true, "slow": false}');
+                                }
+
+                            }
+                            break
+                        }
+                        // case 'Gray':
+                        //     {
+                        //         var array = new Uint8ClampedArray(e.data.gray),
+                        //             iData = new ImageData(array, stream_canvas.width, stream_canvas.height);
+                        //         paint_context.putImageData(iData, 0, 0);
+                        //     }
+                    default:
+                        break
                 }
-                // }
+            }
             workerOpenCV.postMessage('load')
 
             connect();
@@ -175,7 +154,10 @@
 
             function paintCanvas() {
                 if (track_face) {
-                    stream_context.drawImage(image, 100, 100, 480, 480);
+                    // stream_context.drawImage(image, 0, 0, 480, 480);
+                    stream_context.beginPath();
+                    stream_context.rect(main_face.x, main_face.y, main_face.width, main_face.height);
+                    stream_context.stroke();
                     imageData = stream_context.getImageData(0, 0, stream_canvas.width, stream_canvas.height);
                     workerOpenCV.postMessage({
                         msg: 'data',
@@ -183,33 +165,11 @@
                         width: stream_canvas.width,
                         data: imageData.data.buffer,
                     }, [imageData.data.buffer]);
-                    // src.create(video.height, video.width, cv.CV_8UC4)
-                    // src.data.set(stream_context.getImageData(0, 0, video.width, video.height).data);
-                    // src.copyTo(dst);
-                    // cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0);
-                    // // detect faces.
-                    // classifier.detectMultiScale(gray, faces, 1.1, 3, 0);
-                    // // draw faces.
-                    // for (let i = 0; i < faces.size(); ++i) {
-                    //     let face = faces.get(i);
-                    //     let point1 = new cv.Point(face.x, face.y);
-                    //     let point2 = new cv.Point(face.x + face.width, face.y + face.height);
-                    //     cv.rectangle(dst, point1, point2, [255, 0, 0, 255]);
-                    // }
-                    // cv.imshow('paint-canvas', dst);
-
-                } else {
-                    paint_context.drawImage(stream_context);
                 }
-                // requestAnimationFrame(paintCanvas)
+                // else {
+                //     paint_context.drawImage(stream_context);
+                // }
             }
-            // window.onbeforeunload = function() {
-            //     src.delete()
-            //     dst.delete()
-            //     gray.delete()
-            //     faces.delete()
-            //     classifier.delete()
-            // };
 
             function startStream() {
                 if (wsavc) {
@@ -629,7 +589,6 @@
 <body>
     <div id="container">
         <canvas class="stream-canvas" id="offscreen-stream-canvas"></canvas>
-        <!-- <canvas class="stream-canvas" id="offscreen-stream-canvas" style="display: none;"></canvas> -->
         <canvas class="stream-canvas" id="paint-canvas"></canvas>
 
         <div id="controls">
