@@ -9,10 +9,10 @@ use wasm_bindgen::prelude::*;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
-pub fn greet() -> String {
-    String::from("Hello World!")
+pub fn greet(input: &mut [u8]) -> Vec<u8> {
+    input[0] = 10; // just changing some value here
+    Vec::from(input)
 }
-
 
 #[cfg(test)]
 mod tests {

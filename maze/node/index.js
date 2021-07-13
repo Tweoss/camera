@@ -4,7 +4,7 @@ const { JSDOM } = require('jsdom');
 const { Worker } = require('worker_threads');
 const worker = new Worker('./worker.js');
 
-worker.once('message', (message) => {
+worker.on('message', (message) => {
     console.log(message);
 });
 worker.postMessage('message');
