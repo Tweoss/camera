@@ -107,3 +107,9 @@ dist
 
 # Open cv calibration images
 opencv_calib/
+
+# rust cache
+**/target/**
+
+# more calib images
+maze/node/images/*

@@ -1,0 +1,13 @@
+[package]
+name = "img-tools"
+version = "0.1.0"
+authors = ["Francis Chua <francischua689@gmail.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasm-bindgen = "0.2.74"
