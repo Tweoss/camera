@@ -21,7 +21,7 @@ api.Init(app, url, relay);
 console.log(`Starting camera broker...`);
 server.listen(5000);
 
-process.on('SIGINT', function () {
+process.on('SIGINT', function() {
     console.log('Caught interrupt signal');
     relay.stop();
     process.exit();
