@@ -4,17 +4,12 @@ const { JSDOM } = require('jsdom');
 const { Worker } = require('worker_threads');
 const worker = new Worker('./worker.js');
 
-worker.on('message', (message) => {
-    console.log(message);
-});
-worker.postMessage('message');
-
 
 const base_url = 'cam1.local:5000/camera/',
     ws_url = 'ws://' + base_url,
     camera_name = 'cam1';
 
-
+// read live player in as a string to avoid url, document scope issues
 fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) {
     if (err) {
         return console.log(err);
@@ -60,26 +55,55 @@ fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) 
 			}
 			setTimeout(() => {
 				wsavc.playStream('${camera_name}');
-			}, 500);
+			}, 1000);
 				
 		</script>
 	</body>`, { runScripts: "dangerously", pretendToBeVisual: true });
+    const canvas = dom.window.document.getElementById('canvas');
     // capturing canvas to file
     let i = 10;
-    setInterval(() => {
+    setTimeout(() => {
         console.log("making new file")
-        canvasToFile(dom.window.document.getElementById("canvas"), './images/canvas' + i + '.png');
+        canvasToFile(canvas, './images/canvas.png');
         i++;
-    }, 10000);
+        processCanvas(canvas, worker);
+        // let temp_canvas = dom.window.document.getElementById('canvas');
+        // let temp_ctx = temp_canvas.getContext('2d');
+        // console.log("dom", temp_canvas.getContext('2d').getImageData(0, 0, temp_canvas.width, temp_canvas.height));
+        canvasToFile(canvas, './images/canvas.png');
+    }, 5000);
+    worker.on('message', (message) => {
+        console.log(message);
+    });
 });
 
 // creates or overwrites the file at fileName with a png with contents of jsDOMCanvas
 function canvasToFile(jsDOMCanvas, fileName) {
     let ctx = jsDOMCanvas.getContext("2d");
     let data = ctx.getImageData(0, 0, jsDOMCanvas.width, jsDOMCanvas.height);
-    const out_canvas = Canvas.createCanvas(jsDOMCanvas.width, jsDOMCanvas.height);
+    imgDataToFile(data, fileName);
+}
+
+function imgDataToFile(imgData, fileName) {
+    const out_canvas = Canvas.createCanvas(imgData.width, imgData.height);
     const out_ctx = out_canvas.getContext('2d')
-    out_ctx.putImageData(data, 0, 0);
+    out_ctx.putImageData(imgData, 0, 0);
+    console.log(out_canvas.getContext('2d').getImageData(0, 0, imgData.width, imgData.height));
     let buffer = out_canvas.toBuffer('image/png');
     fs.writeFileSync(fileName, buffer);
+}
+
+// process canvas with worker
+function processCanvas(canvas, worker) {
+    let imgData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const out_canvas = Canvas.createCanvas(imgData.width, imgData.height);
+    const out_ctx = out_canvas.getContext('2d')
+    out_ctx.putImageData(imgData, 0, 0);
+    const pixels = out_ctx.getImageData(0, 0, canvas.width, canvas.height);
+    worker.postMessage({
+        action: 'process',
+        pixels: pixels.data.buffer,
+        width: pixels.width,
+        height: pixels.height,
+    }, [pixels.data.buffer]);
 }
