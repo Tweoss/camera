@@ -113,3 +113,4 @@ opencv_calib/
 
 # more calib images
 maze/node/images/*
+temp_calib_py/**

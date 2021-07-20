@@ -5,9 +5,12 @@ const { Worker } = require('worker_threads');
 const worker = new Worker('./worker.js');
 
 
-const base_url = 'cam1.local:5000/camera/',
-    ws_url = 'ws://' + base_url,
-    camera_name = 'cam1';
+const base_url = 'vachuska.com/camera/?id=Menlo&t=25b46b54-b22a-4c62-aac9-741802c8c169',
+    ws_url = 'wss://' + base_url,
+    camera_name = 'Menlo';
+// const base_url = 'cam1.local:5000/camera/',
+//     ws_url = 'ws://' + base_url,
+//     camera_name = 'cam1';
 
 // read live player in as a string to avoid url, document scope issues
 fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) {
@@ -64,16 +67,13 @@ fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) 
     let i = 10;
     setTimeout(() => {
         console.log("making new file")
-        canvasToFile(canvas, './images/canvas.png');
         i++;
         processCanvas(canvas, worker);
-        // let temp_canvas = dom.window.document.getElementById('canvas');
-        // let temp_ctx = temp_canvas.getContext('2d');
-        // console.log("dom", temp_canvas.getContext('2d').getImageData(0, 0, temp_canvas.width, temp_canvas.height));
         canvasToFile(canvas, './images/canvas.png');
     }, 5000);
     worker.on('message', (message) => {
-        console.log(message);
+        let imgData = new Canvas.ImageData(Uint8ClampedArray.from(message), canvas.width, canvas.height);
+        imgDataToFile(imgData, './images/canvas_wasm.png');
     });
 });
 
@@ -84,11 +84,11 @@ function canvasToFile(jsDOMCanvas, fileName) {
     imgDataToFile(data, fileName);
 }
 
+// auxiliary function to place imgData in a png file
 function imgDataToFile(imgData, fileName) {
     const out_canvas = Canvas.createCanvas(imgData.width, imgData.height);
     const out_ctx = out_canvas.getContext('2d')
     out_ctx.putImageData(imgData, 0, 0);
-    console.log(out_canvas.getContext('2d').getImageData(0, 0, imgData.width, imgData.height));
     let buffer = out_canvas.toBuffer('image/png');
     fs.writeFileSync(fileName, buffer);
 }

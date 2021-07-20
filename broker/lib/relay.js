@@ -101,13 +101,13 @@ class StreamRelay {
                     self.update_camera_light(name);
                 } else if (action === 'REQUESTTRACK') {
                     let camera = self.cameras.get(name);
-                    if (camera.tracking_client == "") {
+                    if (camera && camera.tracking_client == "") {
                         socket.send(JSON.stringify({ data: { name: 'StartTrack' } }))
                         camera.tracking_client = uuid;
                     }
                 } else if (action === 'STOPTRACK') {
                     let camera = self.cameras.get(name);
-                    if (camera.tracking_client == uuid) {
+                    if (camera && camera.tracking_client == uuid) {
                         camera.tracking_client = "";
                     }
                 }
