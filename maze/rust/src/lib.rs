@@ -23,7 +23,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
 pub fn undistort_data(
-    in_data: Uint8Array,
+    in_data: ArrayBuffer,
     width: u32,
     height: u32,
     k1: f64,
@@ -31,7 +31,7 @@ pub fn undistort_data(
     k3: f64,
 ) -> Uint8Array {
     // copying the input data buffer prevents losing it due to malloc
-    let temp_data = Uint8Array::new(&in_data.slice(0, in_data.byte_length()));
+    let temp_data = Uint8Array::new(&in_data);
     // using a vec for better panic messages
     let vec = temp_data.to_vec();
     
