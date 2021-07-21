@@ -140,10 +140,17 @@ pub fn ij(data: &[u8], i: usize, j: usize, width: u32, height: u32) -> Result<Co
 /// # Description
 /// How much the corners will scale.
 /// Divide by the scale factor to keep the edges at the original distance.
-/// (assumes that the distortion is perfectly barrel and the edges will therefore be the furthest out)
+/// (assumes that the distortion is perfectly barrel with reverse being pincushion and the edges will therefore be the furthest out)
 /// Note: should use the same formula as distort_point
+/// # Usage
+/// ```
+/// use img_tools::utils::scale_factor;
+/// assert_eq!(1.1, scale_factor(0.05, 0.0, 0.0));
+/// ```
 pub fn scale_factor(k1: f64, k2: f64, k3: f64) -> f64 {
+	// distance of the edge in normalized coords
 	let d = f64::sqrt(2.);
+	// how much the edge scales
 	1. + k1 * f64::powi(d, 2) + k2 * f64::powi(d, 4) + k3 * f64::powi(d, 6)
 }
 
