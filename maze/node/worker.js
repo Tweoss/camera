@@ -1,5 +1,5 @@
 const { parentPort } = require('worker_threads');
-const { undistort_data, init_panic_hook, detect_corners, ToleranceOptions, WeightageOptions, corner_map } = require('../rust/pkg/img_tools.js');
+const { undistort_data, init_panic_hook, detect_corners, ToleranceOptions, WeightageOptions, corner_map, condense_corners } = require('../rust/pkg/img_tools.js');
 init_panic_hook();
 parentPort.on('message', (message) => {
     if (message.action === 'generate') {
@@ -34,8 +34,8 @@ parentPort.on('message', (message) => {
         console.log("wasm finished");
 
         opt = new ToleranceOptions();
-        opt.black_dist = 100;
-        opt.white_dist = 100;
+        // opt.black_dist = 100;
+        // opt.white_dist = 100;
         // opt.avg = 120;
         // opt.intersect_dist = 80;
         // opt.center_dist = 10;
@@ -48,11 +48,17 @@ parentPort.on('message', (message) => {
         weight.lock();
 
 
-        let a = detect_corners(message.pixels, message.width, message.height, 7, opt, weight);
+        let a = detect_corners(message.pixels, message.width, message.height, 7, opt, weight, 30);
         let object = [];
         for (let index = 0; index < a.length; index++) {
             const element = a[index];
             // console.log(element, element.x, element.y);
+            object.push({ x: element.x, y: element.y });
+        }
+        let b = condense_corners(object, 5.0, 4.0);
+        object = [];
+        for (let index = 0; index < b.length; index++) {
+            const element = b[index];
             object.push({ x: element.x, y: element.y });
         }
         // console.log(object.length);

@@ -1,6 +1,11 @@
 /// utils module for processing
 pub mod utils;
 
+extern crate serde_json;
+extern crate wasm_bindgen;
+#[macro_use]
+extern crate serde_derive;
+
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use utils::{
     bilinear_interpolation, distort_point, get_corner_unlikelihood, set_color, Color, NormPoint,
@@ -97,6 +102,7 @@ pub fn detect_corners(
     range: u32,
     tolerances: ToleranceOptions,
     weightings: WeightageOptions,
+    number_of_corners: u32,
 ) -> Array {
     // according to the js sys docs, this (Uint8Array and then to_vec) only creates a single copy of the input data
     // copying the input data buffer prevents losing it due to malloc
@@ -106,7 +112,7 @@ pub fn detect_corners(
 
     // make sure this output vector is always correctly sorted by unlikelihood increasing
     // might make the checking slightly faster if the valid points are sparse (as they should be)
-    let mut output = vec![(f64::MAX, Point { x: 0.0, y: 0.0 }); 8];
+    let mut output = vec![(f64::MAX, Point { x: 0.0, y: 0.0 }); number_of_corners as usize];
     for i in 0..width {
         for j in 0..height {
             let unlikelihood =
@@ -124,7 +130,6 @@ pub fn detect_corners(
             }
         }
     }
-    log!("output: {:?}", output);
     output.into_iter().map(|a| a.1).map(JsValue::from).collect()
 }
 
@@ -144,16 +149,11 @@ pub fn corner_map(
     let scale_factor = 1.0;
     let mut output = Uint8Array::new_with_length(vec.len() as u32);
 
-    let mut max = 0.;
     for i in 0..width {
         for j in 0..height {
-            let temp_i = i as i32;
-            let temp_j = j as i32;
             let mut unlikelihood =
                 get_corner_unlikelihood(&vec, i, j, width, height, range, &opt, &weight)
-                    .unwrap_or_else(|err| {
-                        0xFF.into()
-                    });
+                    .unwrap_or_else(|_| 0xFF.into());
             unlikelihood *= scale_factor;
             let c = if unlikelihood > 255. {
                 255
@@ -170,7 +170,34 @@ pub fn corner_map(
         }
     }
     output
+}
 
+#[wasm_bindgen]
+/// For condensing output of `detect_corners`.
+/// Mashes neigboring pixels (as determined by `proximity`) together.
+/// Returns the specified number of corners based off the number of pixels corresponding to each grouping.
+pub fn condense_corners(corners: &JsValue, proximity: f64, num_corners: u32) -> Array {
+    let points: Vec<Point> = corners.into_serde().unwrap();
+    let mut output: Vec<(u32, Point)> = Vec::new();
+    points.iter().for_each(|p| {
+        if p.x != 0.0 && p.y != 0.0 {
+            if let Some(index) = output
+                .iter()
+                .position(|(_, group)| group.distance(p) < proximity)
+            {
+                let count = output[index].0;
+                let mut group = &mut output[index].1;
+                group.x = ((group.x) * count as f64 + p.x) / (count + 1) as f64;
+                group.y = ((group.y) * count as f64 + p.y) / (count + 1) as f64;
+                output[index].0 += 1;
+            } else {
+                output.push((1, p.clone()));
+            }
+        }
+    });
+    output.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    output.truncate(num_corners as usize);
+    output.into_iter().map(|a| a.1).map(JsValue::from).collect()
 }
 
 #[wasm_bindgen]

@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 
 /// Structure containing points
 #[wasm_bindgen]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Point {
     /// x coordinate
     pub x: f64,
@@ -40,7 +40,8 @@ impl Point {
             y: t.1.into(),
         }
     }
-    fn distance(&self, other: &Point) -> f64 {
+    /// Finds the distance between two points
+   pub  fn distance(&self, other: &Point) -> f64 {
         let x = self.x - other.x;
         let y = self.y - other.y;
         f64::sqrt(x * x + y * y)
