@@ -5,12 +5,12 @@ const { Worker } = require('worker_threads');
 const worker = new Worker('./worker.js');
 
 
-const base_url = 'vachuska.com/camera/?id=Menlo&t=25b46b54-b22a-4c62-aac9-741802c8c169',
-    ws_url = 'wss://' + base_url,
-    camera_name = 'Menlo';
-// const base_url = 'cam1.local:5000/camera/',
-//     ws_url = 'ws://' + base_url,
-//     camera_name = 'cam1';
+// const base_url = 'vachuska.com/camera/?id=Menlo&t=25b46b54-b22a-4c62-aac9-741802c8c169',
+//     ws_url = 'wss://' + base_url,
+//     camera_name = 'Menlo';
+const base_url = 'cam1.local:5000/camera/',
+    ws_url = 'ws://' + base_url,
+    camera_name = 'cam1';
 
 // read live player in as a string to avoid url, document scope issues
 fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) {
@@ -66,14 +66,37 @@ fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) 
     // capturing canvas to file
     let i = 10;
     setTimeout(() => {
-        console.log("making new file")
         i++;
         processCanvas(canvas, worker);
         canvasToFile(canvas, './images/canvas.png');
     }, 5000);
     worker.on('message', (message) => {
-        let imgData = new Canvas.ImageData(Uint8ClampedArray.from(message), canvas.width, canvas.height);
-        imgDataToFile(imgData, './images/canvas_wasm.png');
+        console.log("got a message");
+        if (message.action === 'undistorted') {
+            console.log("got message");
+            let imgData = new Canvas.ImageData(Uint8ClampedArray.from(message.data), canvas.width, canvas.height);
+            imgDataToFile(imgData, './images/canvas_wasm.png');
+            console.log("printed");
+            imgData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+            imgDataToFile(imgData, './images/canvas_js.png');
+        } else if (message.action === 'located') {
+            const out_canvas = Canvas.createCanvas(canvas.width, canvas.height);
+            const out_ctx = out_canvas.getContext('2d')
+
+            out_ctx.putImageData(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height), 0, 0);
+            let buffer = out_canvas.toBuffer('image/png');
+            fs.writeFileSync('./images/canvas_wasmunmarked.png', buffer);
+            for (let index = 0; index < message.data.length; index++) {
+                const point = message.data[index];
+                out_ctx.beginPath();
+                out_ctx.fillStyle = '#ff0000ff';
+                out_ctx.fillRect(point.x, point.y, 1, 1);
+                out_ctx.fill();
+            }
+            buffer = out_canvas.toBuffer('image/png');
+            fs.writeFileSync('./images/canvas_wasmmark.png', buffer);
+            console.log("wrote new file");
+        }
     });
 });
 
