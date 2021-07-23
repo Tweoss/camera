@@ -41,7 +41,7 @@ impl Point {
         }
     }
     /// Finds the distance between two points
-   pub  fn distance(&self, other: &Point) -> f64 {
+    pub fn distance(&self, other: &Point) -> f64 {
         let x = self.x - other.x;
         let y = self.y - other.y;
         f64::sqrt(x * x + y * y)
@@ -183,7 +183,6 @@ impl WeightageOptions {
         self.avg /= sum;
     }
 }
-
 
 #[wasm_bindgen]
 /// Essential overall information for the corner detection algorithm

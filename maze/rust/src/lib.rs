@@ -9,7 +9,7 @@ extern crate serde_derive;
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use utils::{
     bilinear_interpolation, distort_point, get_corner_unlikelihood, set_color, Color, NormPoint,
-    Point, OverallOptions, ToleranceOptions, WeightageOptions,
+    OverallOptions, Point, ToleranceOptions, WeightageOptions,
 };
 use wasm_bindgen::prelude::*;
 #[allow(unused_imports)] // for logging
@@ -114,9 +114,17 @@ pub fn detect_corners(
     let mut output = vec![(f64::MAX, Point { x: 0.0, y: 0.0 }); overall.pre_corners as usize];
     for i in 0..width {
         for j in 0..height {
-            let unlikelihood =
-                get_corner_unlikelihood(&vec, i, j, width, height, overall.view_range, &tolerances, &weightings)
-                    .unwrap_or(f64::MAX);
+            let unlikelihood = get_corner_unlikelihood(
+                &vec,
+                i,
+                j,
+                width,
+                height,
+                overall.view_range,
+                &tolerances,
+                &weightings,
+            )
+            .unwrap_or(f64::MAX);
             if unlikelihood < output[0].0 {
                 output[0] = (
                     unlikelihood,
@@ -129,7 +137,14 @@ pub fn detect_corners(
             }
         }
     }
-    condense_corners(&output.into_iter().map(|x| x.1).collect::<Vec<Point>>(), overall.valid_proximity, overall.post_corners).into_iter().map(JsValue::from).collect()
+    condense_corners(
+        &output.into_iter().map(|x| x.1).collect::<Vec<Point>>(),
+        overall.valid_proximity,
+        overall.post_corners,
+    )
+    .into_iter()
+    .map(JsValue::from)
+    .collect()
 }
 
 /// For viewing the unlikelihoods in an image. useful for selecting weights
