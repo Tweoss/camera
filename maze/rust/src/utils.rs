@@ -20,20 +20,6 @@ impl Point {
             y: (self.y - center.y) / center.y,
         }
     }
-    /// Undo normalization
-    pub fn unnormalized(&self, center: &Point) -> Point {
-        Point {
-            x: (self.x * center.x + center.x),
-            y: (self.y * center.y + center.y),
-        }
-    }
-    /// Unscale
-    pub fn unscale(&self, scale: f64) -> Point {
-        Point {
-            x: self.x / scale,
-            y: self.y / scale,
-        }
-    }
     fn from_ints(t: &(i32, i32)) -> Point {
         Point {
             x: t.0.into(),
@@ -49,12 +35,31 @@ impl Point {
 }
 
 /// Structure containing normalized position
+#[wasm_bindgen]
 #[derive(Debug)]
 pub struct NormPoint {
     /// x coordinate
     pub x: f64,
     /// y coordinate
     pub y: f64,
+}
+
+impl NormPoint {
+    /// Unnormalize point
+    pub fn unnormalized(&self, center: &Point) -> Point {
+        Point {
+            x: center.x + self.x * center.x,
+            y: center.y + self.y * center.y,
+        }
+    }
+
+    /// Unscale
+    pub fn unscale(&self, scale: f64) -> NormPoint {
+        NormPoint {
+            x: self.x / scale,
+            y: self.y / scale,
+        }
+    }
 }
 
 /// Structure holding color information
@@ -223,30 +228,8 @@ impl OverallOptions {
 }
 
 /// # Description
-/// Returns a point after correction for radial distortion
-/// p is the distorted point, c is the center of distortion, and k1 through k4 are the radial distortion coefficients.
-/// # Usage
-/// ```
-/// use img_tools::utils::{undistort_point, Point};
-/// let original_point = Point { x: 1.0, y: 2.0 };
-/// let center_point = Point { x: 0.0, y: 0.0 };
-/// let (k1, k2, k3) = (0.2, 0.0, 0.0);
-/// // assert_eq!(Point { x: 0.5, y: 1.0 }, undistort_point(original_point, center_point, k1, k2, k3));
-/// // assert_eq!(Point { x: 0.0, y: 0.0 }, undistort_point(original_point, center_point, k1, k2, k3));
-/// panic!();
-/// ```
-pub fn undistort_point(p: NormPoint, c: NormPoint, k1: f64, k2: f64, k3: f64) -> Point {
-    let d = f64::sqrt(f64::powi(p.x - c.x, 2) + f64::powi(p.y - c.y, 2));
-    let expr = 1. + k1 * f64::powi(d, 2) + k2 * f64::powi(d, 4) + k3 * f64::powi(d, 6);
-    Point {
-        x: c.x + (p.x - c.x) / expr,
-        y: c.y + (p.y - c.y) / expr,
-    }
-}
-
-/// # Description
 /// Returns a point after distorting it by a radial distortion
-/// p is the undistorted point, c is the center of distortion, and k1 through k4 are the radial distortion coefficients.
+/// p is the undistorted point in normalized coordinates, and k1 through k4 are the radial distortion coefficients.
 /// Uses the formula at
 /// https://docs.opencv.org/4.5.2/dc/dbb/tutorial_py_calibration.html
 /// # Usage
@@ -254,17 +237,14 @@ pub fn undistort_point(p: NormPoint, c: NormPoint, k1: f64, k2: f64, k3: f64) ->
 /// use img_tools::utils::{distort_point, Point};
 /// panic!();
 /// ```
-pub fn distort_point(p: NormPoint, c: NormPoint, k1: f64, k2: f64, k3: f64) -> Point {
-    let d = f64::sqrt(f64::powi(p.x - c.x, 2) + f64::powi(p.y - c.y, 2));
+pub fn distort_point(p: NormPoint, k1: f64, k2: f64, k3: f64) -> NormPoint {
+    let d = f64::sqrt(f64::powi(p.x, 2) + f64::powi(p.y, 2));
     let expr = 1. + k1 * f64::powi(d, 2) + k2 * f64::powi(d, 4) + k3 * f64::powi(d, 6);
-    Point {
-        x: c.x + (p.x - c.x) * expr,
-        y: c.y + (p.y - c.y) * expr,
+    NormPoint {
+        x: p.x * expr,
+        y: p.y * expr,
     }
 }
-// pub fn bilinear_interpolation(p: Point, a: &[], b, c, d){
-
-// };
 
 /// # Description
 /// Shorthand to access Uint8Array.
@@ -656,4 +636,35 @@ pub fn get_corner_unlikelihood(
     } else {
         Ok(unlikelihood)
     }
+}
+
+/// # Description
+/// For condensing output of `detect_corners`.
+/// Mashes neigboring pixels (as determined by `proximity`) together.
+/// Returns the specified number of corners based off the number of pixels corresponding to each grouping.
+/// # Usage
+/// ```
+/// panic!();
+/// ```
+pub fn condense_corners(points: &[Point], proximity: f64, num_corners: u32) -> Vec<Point> {
+    let mut output: Vec<(u32, Point)> = Vec::new();
+    points.iter().for_each(|p| {
+        if p.x != 0.0 && p.y != 0.0 {
+            if let Some(index) = output
+                .iter()
+                .position(|(_, group)| group.distance(p) < proximity)
+            {
+                let count = output[index].0;
+                let mut group = &mut output[index].1;
+                group.x = ((group.x) * count as f64 + p.x) / (count + 1) as f64;
+                group.y = ((group.y) * count as f64 + p.y) / (count + 1) as f64;
+                output[index].0 += 1;
+            } else {
+                output.push((1, p.clone()));
+            }
+        }
+    });
+    output.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    output.truncate(num_corners as usize);
+    output.into_iter().map(|a| a.1).collect::<Vec<Point>>()
 }

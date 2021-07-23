@@ -8,7 +8,7 @@ extern crate serde_derive;
 
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use utils::{
-    bilinear_interpolation, distort_point, get_corner_unlikelihood, set_color, Color, NormPoint,
+    bilinear_interpolation, distort_point, get_corner_unlikelihood, set_color, condense_corners, Color,
     OverallOptions, Point, ToleranceOptions, WeightageOptions,
 };
 use wasm_bindgen::prelude::*;
@@ -24,7 +24,7 @@ macro_rules! log {
 }
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
+// allocator. (wee alloc is a smaller allocator for wasm)
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -61,7 +61,6 @@ pub fn undistort_data(
                     y: j.into(),
                 }
                 .normalized(&center),
-                NormPoint { x: 0., y: 0. },
                 k1,
                 k2,
                 k3,
@@ -184,32 +183,6 @@ pub fn corner_map(
         }
     }
     output
-}
-
-/// For condensing output of `detect_corners`.
-/// Mashes neigboring pixels (as determined by `proximity`) together.
-/// Returns the specified number of corners based off the number of pixels corresponding to each grouping.
-pub fn condense_corners(points: &[Point], proximity: f64, num_corners: u32) -> Vec<Point> {
-    let mut output: Vec<(u32, Point)> = Vec::new();
-    points.iter().for_each(|p| {
-        if p.x != 0.0 && p.y != 0.0 {
-            if let Some(index) = output
-                .iter()
-                .position(|(_, group)| group.distance(p) < proximity)
-            {
-                let count = output[index].0;
-                let mut group = &mut output[index].1;
-                group.x = ((group.x) * count as f64 + p.x) / (count + 1) as f64;
-                group.y = ((group.y) * count as f64 + p.y) / (count + 1) as f64;
-                output[index].0 += 1;
-            } else {
-                output.push((1, p.clone()));
-            }
-        }
-    });
-    output.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-    output.truncate(num_corners as usize);
-    output.into_iter().map(|a| a.1).collect::<Vec<Point>>()
 }
 
 #[wasm_bindgen]
