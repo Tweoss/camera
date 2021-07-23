@@ -184,6 +184,45 @@ impl WeightageOptions {
     }
 }
 
+
+#[wasm_bindgen]
+/// Essential overall information for the corner detection algorithm
+/// - The viewbox range (the distance from center to a corner along one axis)
+/// - The pre-condensed number of corners
+/// - The valid proximity for condensing
+/// - The number of post-condensed corners
+pub struct OverallOptions {
+    /// The range
+    pub view_range: u32,
+    /// The number of pre-condensed corners
+    pub pre_corners: u32,
+    /// The valid proximity for condensing
+    pub valid_proximity: f64,
+    /// The number of post-condensed corners
+    pub post_corners: u32,
+}
+
+impl Default for OverallOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl OverallOptions {
+    /// The constructor to be used by js\
+    /// **Not usable defaults**
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> OverallOptions {
+        OverallOptions {
+            view_range: 0,
+            pre_corners: 0,
+            valid_proximity: 0.0,
+            post_corners: 0,
+        }
+    }
+}
+
 /// # Description
 /// Returns a point after correction for radial distortion
 /// p is the distorted point, c is the center of distortion, and k1 through k4 are the radial distortion coefficients.
