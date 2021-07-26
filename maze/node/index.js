@@ -5,12 +5,12 @@ const { Worker } = require('worker_threads');
 const worker = new Worker('./worker.js');
 
 
-// const base_url = 'vachuska.com/camera/?id=Menlo&t=25b46b54-b22a-4c62-aac9-741802c8c169',
-//     ws_url = 'wss://' + base_url,
-//     camera_name = 'Menlo';
-const base_url = 'cam1.local:5000/camera/',
-    ws_url = 'ws://' + base_url,
-    camera_name = 'cam1';
+const base_url = 'vachuska.com/camera/?id=Menlo&t=25b46b54-b22a-4c62-aac9-741802c8c169',
+    ws_url = 'wss://' + base_url,
+    camera_name = 'Menlo';
+// const base_url = 'cam1.local:5000/camera/',
+//     ws_url = 'ws://' + base_url,
+//     camera_name = 'cam1';
 
 // read live player in as a string to avoid url, document scope issues
 fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) {
@@ -73,7 +73,6 @@ fs.readFile(__dirname + "/lib/http-live-player.js", "utf8", function(err, data) 
     worker.on('message', (message) => {
         console.log("got a message");
         if (message.action === 'undistorted') {
-            console.log("got message");
             let imgData = new Canvas.ImageData(Uint8ClampedArray.from(message.data), canvas.width, canvas.height);
             imgDataToFile(imgData, './images/canvas_wasm.png');
             console.log("printed");
