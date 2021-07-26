@@ -8,8 +8,8 @@ extern crate serde_derive;
 
 use js_sys::{Array, ArrayBuffer, Uint8Array};
 use utils::{
-    bilinear_interpolation, distort_point, get_corner_unlikelihood, set_color, condense_corners, Color,
-    OverallOptions, Point, ToleranceOptions, WeightageOptions,
+    bilinear_interpolation, condense_corners, distort_point, get_corner_unlikelihood, set_color,
+    Color, DistortionOptions, OverallOptions, Point, ToleranceOptions, WeightageOptions, DistortionOffsetOptions,
 };
 use wasm_bindgen::prelude::*;
 #[allow(unused_imports)] // for logging
@@ -37,9 +37,8 @@ pub fn undistort_data(
     in_data: ArrayBuffer,
     width: u32,
     height: u32,
-    k1: f64,
-    k2: f64,
-    k3: f64,
+    distortion_options: DistortionOptions,
+    transform_options: DistortionOffsetOptions,
 ) -> Uint8Array {
     // copying the input data buffer prevents losing it due to malloc
     let temp_data = Uint8Array::new(&in_data);
@@ -47,11 +46,11 @@ pub fn undistort_data(
     let vec = temp_data.to_vec();
 
     let mut output = Uint8Array::new_with_length(vec.len() as u32);
-    let scale = utils::scale_factor(k1, k2, k3);
     let center = Point {
         x: width as f64 / 2.,
         y: height as f64 / 2.,
     };
+
     // iterate over "output," transform each pixel to distorted, interpolate to determine color, then place in output array
     for i in 0..width {
         for j in 0..height {
@@ -60,13 +59,10 @@ pub fn undistort_data(
                     x: i.into(),
                     y: j.into(),
                 }
+                .transform(&transform_options, &center)
                 .normalized(&center),
-                k1,
-                k2,
-                k3,
-            )
-            .unscale(scale)
-            .unnormalized(&center);
+                &distortion_options,
+            );
 
             let color = bilinear_interpolation(&transformed, &vec, width, height);
             // if the canvas has any transparent pixels, the corresponding output will be null (0, 0, 0, 0xFF)
@@ -184,6 +180,11 @@ pub fn corner_map(
     }
     output
 }
+
+// #[wasm_bindgen]
+// /// Given 4 points and the real world size of the distance between the corners.
+// pub fn get_3d_coords(
+// )
 
 #[wasm_bindgen]
 pub fn init_panic_hook() {

@@ -2,6 +2,124 @@
 use js_sys::Uint8Array;
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen]
+#[derive(Debug)]
+/// Parameters for undistorting an image.
+/// - fx: focal length x
+/// - fy: focal length y
+/// - cx: principal point x
+/// - cy: principal point y
+/// - skew: skew of distortion
+/// - k1: radial distortion coefficient
+/// - k2: radial distortion coefficient
+/// - k3: radial distortion coefficient
+/// - t1: tangential distortion coefficient
+/// - t2: tangential distortion coefficient
+pub struct DistortionOptions {
+    /// focal length x
+    pub fx: f64,
+    /// focal length y
+    pub fy: f64,
+    /// principal point x
+    pub cx: f64,
+    /// principal point y
+    pub cy: f64,
+    /// skew of distortion
+    pub skew: f64,
+    /// radial distortion coefficient k1
+    pub k1: f64,
+    /// radial distortion coefficient k2
+    pub k2: f64,
+    /// radial distortion coefficient k3
+    pub k3: f64,
+    /// tangential distortion coefficient t1
+    pub t1: f64,
+    /// tangential distortion coefficient t2
+    pub t2: f64,
+}
+
+impl Default for DistortionOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl DistortionOptions {
+    #[wasm_bindgen(constructor)]
+    /// New distortion options.
+    pub fn new() -> DistortionOptions {
+        DistortionOptions {
+            fx: 0.0,
+            fy: 0.0,
+            cx: 0.0,
+            cy: 0.0,
+            skew: 0.0,
+            k1: 0.0,
+            k2: 0.0,
+            k3: 0.0,
+            t1: 0.0,
+            t2: 0.0,
+        }
+    }
+
+    /// # Description
+    /// Inverts the distortion coefficients as given by \
+    /// https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4934233/#app3-sensors-16-00807 \
+    /// Having 9 coefficients after inversion only matters for repeated stability, so returning only the first three reverse coefficients is not an issue.
+    pub fn invert(&self) -> DistortionOptions {
+        DistortionOptions {
+            cx: self.cx,
+            cy: self.cy,
+            fx: self.fx,
+            fy: self.fy,
+            skew: self.skew,
+            t1: self.t1,
+            t2: self.t2,
+            k1: -self.k1,
+            k2: 3. * self.k1 * self.k1 - self.k2,
+            k3: -12. * f64::powi(self.k1, 3) + 8. * self.k1 * self.k2 - self.k3,
+        }
+    }
+}
+
+#[wasm_bindgen]
+/// Parameters for altering distortion results.
+/// x: the x offset
+/// y: the y offset
+/// x_scale: how much to scale x axis
+/// y_scale: how much to scale y axis
+pub struct DistortionOffsetOptions {
+    /// the x offset
+    pub x: f64,
+    /// the y offset
+    pub y: f64,
+    /// how much to scale x axis
+    pub x_scale: f64,
+    /// how much to scale y axis
+    pub y_scale: f64,
+}
+
+impl Default for DistortionOffsetOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl DistortionOffsetOptions {
+    #[wasm_bindgen(constructor)]
+    /// New distortion offset options.
+    pub fn new() -> DistortionOffsetOptions {
+        DistortionOffsetOptions {
+            x: 0.0,
+            y: 0.0,
+            x_scale: 1.0,
+            y_scale: 1.0,
+        }
+    }
+}
+
 /// Structure containing points
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
@@ -32,6 +150,16 @@ impl Point {
         let y = self.y - other.y;
         f64::sqrt(x * x + y * y)
     }
+
+    /// Transform: "reverse"
+    /// positive x offset will result in the image seeming to be shifted left
+    /// greater than 1. x scale will result in the image appearing to be scaled down
+    pub fn transform(&self, options: &DistortionOffsetOptions, center: &Point) -> Point {
+        Point {
+            x: options.x_scale * (self.x - center.x) + center.x + options.x,
+            y: options.y_scale * (self.y - center.y) + center.y + options.y,
+        }
+    }
 }
 
 /// Structure containing normalized position
@@ -50,14 +178,6 @@ impl NormPoint {
         Point {
             x: center.x + self.x * center.x,
             y: center.y + self.y * center.y,
-        }
-    }
-
-    /// Unscale
-    pub fn unscale(&self, scale: f64) -> NormPoint {
-        NormPoint {
-            x: self.x / scale,
-            y: self.y / scale,
         }
     }
 }
@@ -229,7 +349,7 @@ impl OverallOptions {
 
 /// # Description
 /// Returns a point after distorting it by a radial distortion
-/// p is the undistorted point in normalized coordinates, and k1 through k4 are the radial distortion coefficients.
+/// p is the undistorted point in normalized coordinates
 /// Uses the formula at
 /// https://docs.opencv.org/4.5.2/dc/dbb/tutorial_py_calibration.html
 /// # Usage
@@ -237,12 +357,15 @@ impl OverallOptions {
 /// use img_tools::utils::{distort_point, Point};
 /// panic!();
 /// ```
-pub fn distort_point(p: NormPoint, k1: f64, k2: f64, k3: f64) -> NormPoint {
-    let d = f64::sqrt(f64::powi(p.x, 2) + f64::powi(p.y, 2));
-    let expr = 1. + k1 * f64::powi(d, 2) + k2 * f64::powi(d, 4) + k3 * f64::powi(d, 6);
-    NormPoint {
-        x: p.x * expr,
-        y: p.y * expr,
+pub fn distort_point(p: NormPoint, distortion_options: &DistortionOptions) -> Point {
+    let d = distortion_options;
+    let r_2 = f64::powi(p.x, 2) + f64::powi(p.y, 2);
+    let expr = 1. + d.k1 * r_2 + d.k2 * f64::powi(r_2, 2) + d.k3 * f64::powi(r_2, 3);
+    let x = p.x * expr + d.t2 * (r_2 + 2. * p.x * p.x) + 2. * d.t1 * p.x * p.y;
+    let y = p.y * expr + d.t1 * (r_2 + 2. * p.y * p.y) + 2. * d.t2 * p.x * p.y;
+    Point {
+        x: d.cx + x * d.fx + y * d.skew,
+        y: d.cy + y * d.fy,
     }
 }
 
@@ -265,23 +388,6 @@ pub fn ij(data: &[u8], i: i32, j: i32, width: u32, height: u32) -> Result<Color,
         b: data[(base + 2) as usize],
         a: data[(base + 3) as usize],
     })
-}
-
-/// # Description
-/// How much the corners will scale.
-/// Divide by the scale factor to keep the edges at the original distance.
-/// (assumes that the distortion is perfectly barrel with reverse being pincushion and the edges will therefore be the furthest out)
-/// Note: should use the same formula as distort_point
-/// # Usage
-/// ```
-/// use img_tools::utils::scale_factor;
-/// assert_eq!(1.1, scale_factor(0.05, 0.0, 0.0));
-/// ```
-pub fn scale_factor(k1: f64, k2: f64, k3: f64) -> f64 {
-    // distance of the edge in normalized coords
-    let d = f64::sqrt(2.);
-    // how much the edge scales
-    1. + k1 * f64::powi(d, 2) + k2 * f64::powi(d, 4) + k3 * f64::powi(d, 6)
 }
 
 /// # Description
